@@ -53,14 +53,14 @@ jobs:
           cd paper-tracker/src
           python main.py run --env=${{ env.RUN_ENV }}
 
-      - name: Setup var
-        id: vars
-        run: |
-          content=${{ env.MSG }}
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          echo "::set-output name=content::$content"
+      # - name: Setup var
+      #   id: vars
+      #   run: |
+      #     content=${{ env.MSG }}
+      #     content="${content//'%'/'%25'}"
+      #     content="${content//$'\n'/'%0A'}"
+      #     content="${content//$'\r'/'%0D'}"
+      #     echo "::set-output name=content::$content"
       # ============================================
       # TODO [√] 更新仓库数据
       # ============================================
