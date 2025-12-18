@@ -10,6 +10,19 @@ import json
 import time
 import random
 
+DEFAULT_HEADER = {
+    "title": "Title",
+    "venue": " Venue",
+    "year": " Year ",
+    "link": "Link",
+}
+
+DEFAULT_LENGTH = {
+    "title": 60,
+    "venue": 53,
+    "year": 4,
+    "link": 60,
+}
 
 def init_log():
     """Initialize loguru log information"""
@@ -136,3 +149,98 @@ def request_data(url, retry=10, sleep_time=5):
         return None
     else:
         return data
+    
+def update_yaml_from_dblp(items, topic, yaml_path):
+    if not yaml_path.exists():
+        data = {"section": []}
+    else:
+        data = yaml.safe_load(open(yaml_path)) or {"section": []}
+
+    section_title = urllib.parse.unquote(topic).split(":")[-2]
+
+    # ensure section exists
+    if section_title not in data:
+        data["section"].append({"title": section_title})
+        data[section_title] = []
+
+    existing = data[section_title]
+
+    # deduplicate by title + year
+    existing_keys = {(p["title"], p["year"]) for p in existing}
+
+    for item in items:
+        key = (item["title"], item["year"])
+        if key in existing_keys:
+            continue
+
+        existing.append({
+            "title": item["title"],
+            "authors": item["author"],
+            "venue": item["venue"],
+            "year": item["year"],
+            "url": item["url"] or item["ee"],
+        })
+
+    yaml.safe_dump(data, open(yaml_path, "w"), sort_keys=False)
+
+
+def write_venue_yaml(items, yaml_path):
+    """
+    Write DBLP items into awesome-topics data.yaml
+    Structure:
+      venue -> year -> {header, length, body}
+    """
+
+    if yaml_path.exists():
+        data = yaml.safe_load(open(yaml_path)) or {}
+    else:
+        data = {}
+
+    # ensure section list
+    if "section" not in data:
+        data["section"] = []
+
+    for item in items:
+        venue = item["venue"]
+        year = str(item["year"])
+        link = item.get("ee") or item.get("url")
+
+        # ensure venue section exists
+        if venue not in data:
+            data["section"].append({"title": venue})
+            data[venue] = {}
+
+        # ensure year bucket exists
+        if year not in data[venue]:
+            data[venue][year] = {
+                "header": DEFAULT_HEADER.copy(),
+                "length": DEFAULT_LENGTH.copy(),
+                "body": [],
+            }
+
+        body = data[venue][year]["body"]
+
+        # deduplicate by title
+        existing_titles = {p["title"] for p in body}
+        if item["title"] in existing_titles:
+            continue
+
+        body.append({
+            "title": item["title"],
+            "venue": venue,
+            "year": int(year),
+            "link": link,
+        })
+
+        # optional: keep body sorted by title
+        body.sort(key=lambda x: x["title"])
+
+    # sort years descending per venue
+    for venue in data:
+        if venue == "section":
+            continue
+        data[venue] = dict(
+            sorted(data[venue].items(), key=lambda x: x[0], reverse=True)
+        )
+
+    yaml.safe_dump(data, open(yaml_path, "w"), sort_keys=False)

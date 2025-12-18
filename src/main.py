@@ -1,15 +1,23 @@
 from loguru import logger
 from fire import Fire
 from utils import get_msg, init, get_dblp_items, request_data
+from utils import update_yaml_from_dblp, write_venue_yaml
 import yaml
+from pathlib import Path
 
-
+BASE_DIR = Path(__file__).resolve().parent.parent
+print(BASE_DIR, BASE_DIR.parent)
+AWESOME_YAML = BASE_DIR.parent / "awesome-topics" / "data.yaml"
+if not AWESOME_YAML.parent.exists():
+    raise RuntimeError(
+        f"awesome-topics repo not found at {AWESOME_YAML.parent}"
+    )
 
 class Scaffold:
     def __init__(self):
         pass
 
-    def run(self, env: str = "dev", cfg: str = "./../config.yaml"):
+    def run(self, env: str = "dev", cfg: str = "./../config.yaml"): #, yaml_path=None):
         cfg = init(cfg_path=cfg)
 
         logger.info(f"running with env: {env} and cfg: {cfg}")
@@ -17,10 +25,12 @@ class Scaffold:
         # dblp
 
         # load cache
-        cache_path = cfg["cache_path"] / "dblp.yaml"
+        cache_path = cfg["cache_path"] / "data.yaml"
         dblp_cache = yaml.safe_load(open(cache_path, "r")) if cache_path.exists() else {}
         # logger.info(f"dblp cache: {dblp_cache}")
         dblp_new_cache = {}
+
+        yaml_path = AWESOME_YAML #if yaml_path else None
 
         dblp_url = cfg["dblp"]["url"]
         aggregated_msg = ""
@@ -48,7 +58,7 @@ class Scaffold:
             cached_items = dblp_cache.get(
                 topic, []
             )  # get the value of the key "topic" in dblp_cache, if not exist, return []
-            new_items = [item for item in items if item not in cached_items]  # get the new items
+            new_items = [item for item in items if item not in cached_items]  # get the new item
             dblp_new_cache[topic] = new_items
 
             if topic not in dblp_cache:
@@ -67,6 +77,10 @@ class Scaffold:
                 msg += get_msg(new_items, topic)
             logger.info(f"aggregated_msg: {aggregated_msg}")
             logger.info(f"msg: {msg}")
+
+            if yaml_path and len(new_items) > 0:
+                # update_yaml_from_dblp(new_items, topic, yaml_path)
+                write_venue_yaml(new_items, yaml_path)
 
         # save cache
         yaml.safe_dump(dblp_cache, open(cache_path, "w"), sort_keys=False, indent=2)
