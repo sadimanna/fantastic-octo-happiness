@@ -53,28 +53,41 @@ jobs:
           cd paper-tracker/src
           python main.py run --env=${{ env.RUN_ENV }}
 
-      # - name: Setup var
-      #   id: vars
-      #   run: |
-      #     content=${{ env.MSG }}
-      #     content="${content//'%'/'%25'}"
-      #     content="${content//$'\n'/'%0A'}"
-      #     content="${content//$'\r'/'%0D'}"
-      #     echo "::set-output name=content::$content"
+      - name: Setup var
+        id: vars
+        run: |
+          content=${{ env.MSG }}
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          echo "::set-output name=content::$content"
       # ============================================
       # TODO [√] 更新仓库数据
       # ============================================
-      - name: Setup GIT user
-        uses: fregante/setup-git-user@v1
-        with:
-          # Tell the action where the .git folder actually is
-          working-directory: paper-tracker
+      # - name: Setup GIT user
+      #   uses: fregante/setup-git-user@v1
+      #   with:
+      #     # Tell the action where the .git folder actually is
+      #     working-directory: paper-tracker
 
-      - name: Push done work
+      # - name: Push done work
+      #   working-directory: paper-tracker
+      #   run: |
+      #     git diff --exit-code || git commit -am "Automated deployment @ $(date '+%Y-%m-%d %H:%M:%S') ${{ env.TZ }}"
+      #     git push --force origin main
+
+      # ============================================
+      # Updated: Push work for paper-tracker
+      # ============================================
+      - name: Push done work (paper-tracker)
         working-directory: paper-tracker
         run: |
-          git diff --exit-code || git commit -am "Automated deployment @ $(date '+%Y-%m-%d %H:%M:%S') ${{ env.TZ }}"
-          git push --force origin main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated deployment @ $(date '+%Y-%m-%d %H:%M:%S') ${{ env.TZ }}" && git push --force origin main)
+
+      # ... intermediate steps ...
 
       - name: Create an issue for new papers
         if: ${{ env.MSG != '' }}
@@ -92,14 +105,25 @@ jobs:
           python main.py merge_md_yaml
 
       # 7. Commit & push
-      - name: Commit changes
+      # ============================================
+      # Updated: Push work for awesome-topics
+      # ============================================
+      - name: Update README and Push (awesome-topics)
+        working-directory: awesome-topics
         run: |
-          cd awesome-topics
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          python main.py merge_md_yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data.yaml README.md
-          git commit -m "Auto-update papers from DBLP" || exit 0
-          git push
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update papers from DBLP" && git push)
+      # - name: Commit changes
+      #   run: |
+      #     cd awesome-topics
+      #     git config user.name "github-actions"
+      #     git config user.email "github-actions@github.com"
+      #     git add data.yaml README.md
+      #     git commit -m "Auto-update papers from DBLP" || exit 0
+      #     git push
           
       # - name: Update readme
       #   run: |
