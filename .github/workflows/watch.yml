@@ -101,7 +101,7 @@ jobs:
       # 6. Regenerate README
       - name: Update README
         run: |
-          cd awesome-topics
+          cd awesome-topics/scripts
           python main.py merge_md_yaml
 
       # 7. Commit & push
