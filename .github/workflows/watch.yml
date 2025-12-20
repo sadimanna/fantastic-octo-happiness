@@ -85,7 +85,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
+          git add _data _configs cached
           git diff --quiet && git diff --staged --quiet || (git commit -m "Automated deployment @ $(date '+%Y-%m-%d %H:%M:%S') ${{ env.TZ }}" && git push --force origin main)
 
       # ... intermediate steps ...
@@ -114,7 +114,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data.yaml README.md
+          git add docs _data README.md
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update papers from DBLP" && git push)
       # - name: Commit changes
       #   run: |
@@ -124,10 +124,6 @@ jobs:
       #     git add data.yaml README.md
       #     git commit -m "Auto-update papers from DBLP" || exit 0
       #     git push
-          
-      # - name: Update readme
-      #   run: |
-      #     cd scripts && python main.py merge_md_yaml
 
       # - name: Get date time
       #   id: date
