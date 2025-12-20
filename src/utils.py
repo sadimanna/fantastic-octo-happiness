@@ -184,33 +184,31 @@ def update_yaml_from_dblp(items, topic, yaml_path):
     yaml.safe_dump(data, open(yaml_path, "w"), sort_keys=False)
 
 
+# ... (rest of your imports and init functions remain the same)
+
 def write_venue_yaml(items, yaml_path):
     """
-    Write DBLP items into awesome-topics data.yaml
-    Structure:
-      venue -> year -> {header, length, body}
+    Write DBLP items into specific data yaml in _data/
     """
-
+    yaml_path = Path(yaml_path)
     if yaml_path.exists():
-        data = yaml.safe_load(open(yaml_path)) or {}
+        with open(yaml_path, 'r') as f:
+            data = yaml.safe_load(f) or {}
     else:
-        data = {}
-
-    # ensure section list
-    if "section" not in data:
-        data["section"] = []
+        data = {"section": []}
 
     for item in items:
-        venue = item["venue"]
-        year = str(item["year"])
+        venue = item.get("venue", "Unknown Venue")
+        year = str(item.get("year", "Unknown Year"))
         link = item.get("ee") or item.get("url")
 
-        # ensure venue section exists
-        if venue not in data:
+        # Ensure section entry exists for the UI/Table of Contents
+        if not any(s['title'] == venue for s in data["section"]):
             data["section"].append({"title": venue})
+        
+        if venue not in data:
             data[venue] = {}
 
-        # ensure year bucket exists
         if year not in data[venue]:
             data[venue][year] = {
                 "header": DEFAULT_HEADER.copy(),
@@ -219,28 +217,21 @@ def write_venue_yaml(items, yaml_path):
             }
 
         body = data[venue][year]["body"]
-
-        # deduplicate by title
         existing_titles = {p["title"] for p in body}
-        if item["title"] in existing_titles:
-            continue
+        
+        if item["title"] not in existing_titles:
+            body.append({
+                "title": item["title"],
+                "venue": venue,
+                "year": int(year) if year.isdigit() else year,
+                "link": link,
+            })
+            body.sort(key=lambda x: x["title"])
 
-        body.append({
-            "title": item["title"],
-            "venue": venue,
-            "year": int(year),
-            "link": link,
-        })
+    # Sort years descending
+    for key in data:
+        if key != "section" and isinstance(data[key], dict):
+            data[key] = dict(sorted(data[key].items(), key=lambda x: x[0], reverse=True))
 
-        # optional: keep body sorted by title
-        body.sort(key=lambda x: x["title"])
-
-    # sort years descending per venue
-    for venue in data:
-        if venue == "section":
-            continue
-        data[venue] = dict(
-            sorted(data[venue].items(), key=lambda x: x[0], reverse=True)
-        )
-
-    yaml.safe_dump(data, open(yaml_path, "w"), sort_keys=False)
+    with open(yaml_path, "w") as f:
+        yaml.safe_dump(data, f, sort_keys=False, indent=2)

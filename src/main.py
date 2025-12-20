@@ -1,113 +1,93 @@
 from loguru import logger
 from fire import Fire
-from utils import get_msg, init, get_dblp_items, request_data
-from utils import update_yaml_from_dblp, write_venue_yaml
+from utils import (
+    get_msg, init, get_dblp_items, request_data, 
+    write_venue_yaml
+)
 import yaml
 from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-print(BASE_DIR, BASE_DIR.parent)
-AWESOME_YAML = BASE_DIR.parent / "awesome-topics" / "data.yaml"
-if not AWESOME_YAML.parent.exists():
-    raise RuntimeError(
-        f"awesome-topics repo not found at {AWESOME_YAML.parent}"
-    )
+import os
 
 class Scaffold:
     def __init__(self):
-        pass
+        # Define base paths relative to this file
+        self.root_dir = Path(__file__).resolve().parent.parent
+        self.configs_dir = self.root_dir / "_configs"
+        self.data_out_dir = self.root_dir / "_data"
+        self.data_out_dir.mkdir(exist_ok=True)
 
-    def run(self, env: str = "dev", cfg: str = "./../config.yaml"): #, yaml_path=None):
-        cfg_path = cfg
-        cfg = init(cfg_path=cfg)
-
-        logger.info(f"running with env: {env} and cfg: {cfg}")
-
-        # dblp
-
-        # load cache
-        cache_path = cfg["cache_path"] / "data.yaml"
-        dblp_cache = yaml.safe_load(open(cache_path, "r")) if cache_path.exists() else {}
-        # logger.info(f"dblp cache: {dblp_cache}")
-        dblp_new_cache = {}
-
-        BASE_DIR = Path(__file__).resolve().parent.parent
-        # print(BASE_DIR, BASE_DIR.parent)
-        AWESOME_YAML = BASE_DIR.parent / "awesome-topics" / "data.yaml"
-        if not AWESOME_YAML.parent.exists():
-            raise RuntimeError(
-                f"awesome-topics repo not found at {AWESOME_YAML.parent}"
-            )
-
-        yaml_path = AWESOME_YAML #if yaml_path else None
-
-        dblp_url = cfg["dblp"]["url"]
-        aggregated_msg = ""
-        msg = ""
-        flag = False
-
-        logger.info(f"topics: {cfg['dblp']['topics']}")
-
-        for topic in cfg["dblp"]["topics"]:
-            # random sleep to avoid being blocked
-            dblp_data = request_data(dblp_url.format(topic))
-
-            if dblp_data is None:
-                logger.error(f"dblp_data is None, topic: {topic}")
-                continue
+    def run(self, env: str = "dev", global_cfg_path: str = "./../config.yaml"):
+        # Initialize global settings (logging, etc)
+        global_cfg = init(cfg_path=global_cfg_path)
         
-            # 如果没有异常，则执行这里的代码
-            # logger.info(f"dblp_data: {dblp_data}")
+        # 1. Iterate through every yaml in _configs
+        config_files = list(self.configs_dir.glob("*.yaml"))
+        if not config_files:
+            logger.warning(f"No config files found in {self.configs_dir}")
+            return
 
-            # get items
-            items = get_dblp_items(dblp_data)
-            # logger.info(f"items: {items}")
+        # Load cache for DBLP to avoid duplicates across runs
+        cache_path = global_cfg["cache_path"] / "dblp_cache.yaml"
+        dblp_cache = yaml.safe_load(open(cache_path, "r")) if cache_path.exists() else {}
+        
+        aggregated_msg = ""
+        total_flag = False
 
-            # add new cache for this topic
-            cached_items = dblp_cache.get(
-                topic, []
-            )  # get the value of the key "topic" in dblp_cache, if not exist, return []
-            new_items = [item for item in items if item not in cached_items]  # get the new item
-            dblp_new_cache[topic] = new_items
+        for c_file in config_files:
+            logger.info(f"Processing topic config: {c_file.name}")
+            
+            with open(c_file, 'r') as f:
+                topic_cfg = yaml.safe_load(f)
+            
+            # Target output file in _data/ (e.g., federated.yaml)
+            target_yaml_path = self.data_out_dir / c_file.name
+            
+            # The URL template from global config
+            dblp_url_template = global_cfg["dblp"]["url"]
+            topics = topic_cfg.get("dblp", {}).get("topics", [])
 
-            if topic not in dblp_cache:
-                dblp_cache[topic] = []
-            dblp_cache[topic].extend(new_items)
+            topic_new_items_found = False
 
-            logger.info(f"new_items: {new_items}")
+            for topic_query in topics:
+                # Request data
+                dblp_data = request_data(dblp_url_template.format(topic_query))
+                if dblp_data is None:
+                    continue
 
-            # if there is any new items, we set flag to create a new issue
-            if len(new_items) > 0:
-                flag = True
+                items = get_dblp_items(dblp_data)
 
-            # only when new items >0 in this topic we creat the msg
-            if len(new_items) > 0:
-                aggregated_msg += get_msg(new_items, topic, aggregated=True)
-                msg += get_msg(new_items, topic)
-            logger.info(f"aggregated_msg: {aggregated_msg}")
-            logger.info(f"msg: {msg}")
+                # Filter against cache
+                cached_items = dblp_cache.get(topic_query, [])
+                new_items = [item for item in items if item not in cached_items]
+                
+                if len(new_items) > 0:
+                    topic_new_items_found = True
+                    total_flag = True
+                    
+                    # Update local cache object
+                    if topic_query not in dblp_cache:
+                        dblp_cache[topic_query] = []
+                    dblp_cache[topic_query].extend(new_items)
 
-            if yaml_path and len(new_items) > 0:
-                # update_yaml_from_dblp(new_items, topic, yaml_path)
-                write_venue_yaml(new_items, yaml_path)
+                    # Generate messages for Github/Logs
+                    aggregated_msg += get_msg(new_items, topic_query, aggregated=True)
+                    
+                    # Write to the specific YAML file in _data/
+                    write_venue_yaml(new_items, target_yaml_path)
+                    logger.info(f"Added {len(new_items)} items to {target_yaml_path.name}")
 
-        # save cache
-        yaml.safe_dump(dblp_cache, open(cache_path, "w"), sort_keys=False, indent=2)
+        # 2. Save updated cache
+        with open(cache_path, "w") as f:
+            yaml.safe_dump(dblp_cache, f, sort_keys=False, indent=2)
 
-        if env == "prod":
-            import os
-
+        # 3. Handle CI/CD Output
+        if env == "prod" and total_flag:
             env_file = os.getenv("GITHUB_ENV")
-
-            # check if msg is too long
-            if len(msg) > 4096:
-                msg = msg[:4096] + "..."
-
-            if flag:
+            if env_file:
                 with open(env_file, "a") as f:
-                    f.write("MSG=$'" + aggregated_msg + msg + "'")
-                    # f.write("MSG=$'" + msg + "'")
-
+                    # Clip if necessary and write to Github Env
+                    output_msg = aggregated_msg[:4000] + "..." if len(aggregated_msg) > 4096 else aggregated_msg
+                    f.write(f"MSG<<EOF\n{output_msg}\nEOF\n")
 
 if __name__ == "__main__":
     Fire(Scaffold)
