@@ -15,6 +15,7 @@ jobs:
     env:
       TZ: "Asia/Kolkata"
       RUN_ENV: "prod" # within ['prod', 'dev']
+      GH_USER: ${{ github.repository_owner }}
     steps:
       # ============================================
       # TODO [√] 检查工作分支及 Workflows 运行环境
