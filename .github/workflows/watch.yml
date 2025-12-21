@@ -58,11 +58,14 @@ jobs:
       - name: Setup var
         id: vars
         run: |
-          content=${{ env.MSG }}
+          content="$(cat <<'EOF'
+            ${{ env.MSG }}
+            EOF
+            )"
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
-          echo "::set-output name=content::$content"
+          echo "content=$content" >> "$GITHUB_OUTPUT"
       # ============================================
       # TODO [√] 更新仓库数据
       # ============================================
