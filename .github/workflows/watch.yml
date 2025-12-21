@@ -58,12 +58,16 @@ jobs:
       - name: Setup var
         id: vars
         run: |
-          content="$(printenv MSG)"
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          echo "content=$content" >> "$GITHUB_OUTPUT"
-
+          raw="$(printenv MSG)"
+          echo "raw<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$raw" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+      
+      # content="$(printenv MSG)"
+      # content="${content//'%'/'%25'}"
+      # content="${content//$'\n'/'%0A'}"
+      # content="${content//$'\r'/'%0D'}"
+      # echo "content=$content" >> "$GITHUB_OUTPUT"
       # ============================================
       # Updated: Push work for dblp-paper-daily
       # ============================================
